@@ -132,12 +132,52 @@
                                         <button class="btn btn-outline-secondary btn-block"
                                             onclick="location.reload()">Start New Analysis</button>
                                     </div>
+
+                                    <!-- Analysis Breakdown Table -->
+                                    <div class="mt-4 p-3 bg-white border rounded shadow-sm">
+                                        <h6 class="font-weight-bold text-dark border-bottom pb-2 mb-3">ANALYSIS
+                                            BREAKDOWN</h6>
+                                        <table class="table table-sm table-borderless small m-0">
+                                            <thead>
+                                                <tr class="text-muted" style="font-size: 0.7rem;">
+                                                    <th>STAGE</th>
+                                                    <th class="text-center">ROLL</th>
+                                                    <th class="text-center">PITCH</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>Pass 1 (Crude)</td>
+                                                    <td class="text-center font-weight-bold" id="p1-roll">0.00°</td>
+                                                    <td class="text-center font-weight-bold" id="p1-pitch">0.00°</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>Pass 2 (Refined)</td>
+                                                    <td class="text-center font-weight-bold" id="p2-roll">0.00°</td>
+                                                    <td class="text-center font-weight-bold" id="p2-pitch">0.00°</td>
+                                                </tr>
+                                                <tr class="border-top">
+                                                    <td class="font-weight-bold">Final Correct.</td>
+                                                    <td class="text-center font-weight-bold text-danger"
+                                                        id="final-roll-t">0.00°</td>
+                                                    <td class="text-center font-weight-bold text-warning"
+                                                        id="final-pitch-t">0.00°</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
 
                                 <!-- Cubemap Faces -->
                                 <div class="col-lg-7">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h4 style="font-weight: 600; margin: 0;">Cubemap Faces</h4>
+                                        <div class="btn-group btn-group-sm mr-3" role="group">
+                                            <button type="button" id="btn-pass1"
+                                                class="btn btn-outline-secondary active" onclick="switchPass(1)">PASS 1
+                                                (CRUDE)</button>
+                                            <button type="button" id="btn-pass2" class="btn btn-outline-secondary"
+                                                onclick="switchPass(2)">PASS 2 (REFINED)</button>
+                                        </div>
                                         <div class="custom-control custom-switch">
                                             <input type="checkbox" class="custom-control-input"
                                                 id="toggleFaceCorrection">
@@ -150,46 +190,46 @@
                                         <div class="col-3 p-1">
                                             <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
                                                 style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-front" class="face-img" src=""
+                                                <img id="img-F" class="face-img" src=""
                                                     style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
                                                 <div class="face-label"
                                                     style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
                                                     FRONT</div>
                                             </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-front">0.00°</div>
+                                            <div class="small mt-1 font-weight-bold" id="val-F">0.00°</div>
                                         </div>
                                         <div class="col-3 p-1">
                                             <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
                                                 style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-right" class="face-img" src=""
+                                                <img id="img-R" class="face-img" src=""
                                                     style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
                                                 <div class="face-label"
                                                     style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
                                                     RIGHT</div>
                                             </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-right">0.00°</div>
+                                            <div class="small mt-1 font-weight-bold" id="val-R">0.00°</div>
                                         </div>
                                         <div class="col-3 p-1">
                                             <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
                                                 style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-back" class="face-img" src=""
+                                                <img id="img-B" class="face-img" src=""
                                                     style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
                                                 <div class="face-label"
                                                     style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
                                                     BACK</div>
                                             </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-back">0.00°</div>
+                                            <div class="small mt-1 font-weight-bold" id="val-B">0.00°</div>
                                         </div>
                                         <div class="col-3 p-1">
                                             <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
                                                 style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-left" class="face-img" src=""
+                                                <img id="img-L" class="face-img" src=""
                                                     style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
                                                 <div class="face-label"
                                                     style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
                                                     LEFT</div>
                                             </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-left">0.00°</div>
+                                            <div class="small mt-1 font-weight-bold" id="val-L">0.00°</div>
                                         </div>
                                     </div>
                                 </div>
@@ -210,6 +250,7 @@
 
     <script>
         let lastResult = null;
+        let currentPass = 1;
 
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -237,30 +278,9 @@
 
                 if (data.status === 'success') {
                     lastResult = data;
-
-                    document.getElementById('rollVal').textContent = data.roll.toFixed(2) + '°';
-                    document.getElementById('pitchVal').textContent = data.pitch.toFixed(2) + '°';
-
-                    // Populate Face Angles
-                    document.getElementById('val-front').textContent = data.face_angles.front.toFixed(2) + '°';
-                    document.getElementById('val-back').textContent = data.face_angles.back.toFixed(2) + '°';
-                    document.getElementById('val-left').textContent = data.face_angles.left.toFixed(2) + '°';
-                    document.getElementById('val-right').textContent = data.face_angles.right.toFixed(2) + '°';
-
-                    // Populate Face Images from memory cache
-                    document.getElementById('img-front').src = `/mem_image/${data.face_ids.front}`;
-                    document.getElementById('img-back').src = `/mem_image/${data.face_ids.back}`;
-                    document.getElementById('img-left').src = `/mem_image/${data.face_ids.left}`;
-                    document.getElementById('img-right').src = `/mem_image/${data.face_ids.right}`;
-
-                    // Reset transforms
-                    document.getElementById('toggleFaceCorrection').checked = false;
-                    applyFaceRotations(false);
-
+                    renderResults();
                     setupSection.style.display = 'none';
                     results.style.display = 'block';
-
-                    // Open Preview in New Tab
                     openPreviewTab(data);
                 } else {
                     error.textContent = data.error || 'An error occurred during processing.';
@@ -277,6 +297,64 @@
             }
         });
 
+        function renderResults() {
+            if (!lastResult) return;
+
+            document.getElementById('rollVal').textContent = lastResult.roll.toFixed(2) + '°';
+            document.getElementById('pitchVal').textContent = lastResult.pitch.toFixed(2) + '°';
+
+            // Update Breakdown Table
+            document.getElementById('p1-roll').textContent = lastResult.pass1.roll.toFixed(2) + '°';
+            document.getElementById('p1-pitch').textContent = lastResult.pass1.pitch.toFixed(2) + '°';
+            document.getElementById('p2-roll').textContent = lastResult.pass2_residual.roll.toFixed(2) + '°';
+            document.getElementById('p2-pitch').textContent = lastResult.pass2_residual.pitch.toFixed(2) + '°';
+            document.getElementById('final-roll-t').textContent = lastResult.roll.toFixed(2) + '°';
+            document.getElementById('final-pitch-t').textContent = lastResult.pitch.toFixed(2) + '°';
+
+            switchPass(1);
+        }
+
+        function switchPass(passNumber) {
+            currentPass = passNumber;
+            if (!lastResult) return;
+
+            document.getElementById('btn-pass1').classList.toggle('active', passNumber === 1);
+            document.getElementById('btn-pass2').classList.toggle('active', passNumber === 2);
+
+            const passData = passNumber === 1 ? lastResult.pass1 : lastResult.pass2_residual;
+            const faces = ['F', 'R', 'B', 'L'];
+
+            faces.forEach(face => {
+                document.getElementById(`val-${face}`).textContent = passData.face_angles[face].toFixed(2) + '°';
+                document.getElementById(`img-${face}`).src = `/mem_image/${passData.face_ids[face]}`;
+            });
+
+            // Reset correction toggle when switching passes
+            document.getElementById('toggleFaceCorrection').checked = false;
+            applyFaceRotations(false);
+        }
+
+        function applyFaceRotations(enabled) {
+            if (!lastResult) return;
+            const passData = currentPass === 1 ? lastResult.pass1 : lastResult.pass2_residual;
+            const faces = ['F', 'R', 'B', 'L'];
+
+            faces.forEach(face => {
+                const img = document.getElementById(`img-${face}`);
+                if (enabled) {
+                    // Correct Rotation: Swapped sign based on user feedback
+                    const angle = passData.face_angles[face];
+                    img.style.transform = `rotate(${angle}deg)`;
+                } else {
+                    img.style.transform = 'rotate(0deg)';
+                }
+            });
+        }
+
+        document.getElementById('toggleFaceCorrection').addEventListener('change', function (e) {
+            applyFaceRotations(e.target.checked);
+        });
+
         function openPreviewTab(data) {
             const params = new URLSearchParams({
                 img: `/mem_image/${data.main_id}`,
@@ -287,30 +365,8 @@
         }
 
         document.getElementById('reopenBtn').addEventListener('click', () => {
-            if (lastResult) {
-                openPreviewTab(lastResult);
-            }
+            if (lastResult) openPreviewTab(lastResult);
         });
-
-        document.getElementById('toggleFaceCorrection').addEventListener('change', function (e) {
-            applyFaceRotations(e.target.checked);
-        });
-
-        function applyFaceRotations(enabled) {
-            if (!lastResult) return;
-
-            const faces = ['front', 'back', 'left', 'right'];
-            faces.forEach(face => {
-                const img = document.getElementById(`img-${face}`);
-                if (enabled) {
-                    // User reported opposite direction
-                    const angle = lastResult.face_angles[face];
-                    img.style.transform = `rotate(${angle}deg)`; // User requested no zoom/scale
-                } else {
-                    img.style.transform = 'rotate(0deg) scale(1)';
-                }
-            });
-        }
     </script>
 </body>
 

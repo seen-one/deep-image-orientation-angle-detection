@@ -81,7 +81,8 @@ def main():
     angles_p2 = {}
     for face_key in faces_to_predict:
         u_deg, v_deg, in_rot = refinement_configs[face_key]
-        face_img = py360convert.e2p(img, fov_deg=90, u_deg=u_deg, v_deg=v_deg, 
+        # Using narrower 50 FOV for better precision in refinement
+        face_img = py360convert.e2p(img, fov_deg=50, u_deg=u_deg, v_deg=v_deg, 
                                     in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
         
         face_path = os.path.join(temp_dir, f"temp_face_{face_key}_p2.jpg")

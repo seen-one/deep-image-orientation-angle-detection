@@ -236,13 +236,19 @@ def api_predict_360():
         
         # --- PASS 1: Crude Estimation ---
         angles_p1 = {}
+        face_ids_p1 = {}
         for face_key in faces_to_predict:
             u_deg, v_deg = face_configs[face_key]
-            # Standard extraction (no rotation/tilt)
             face_img = py360convert.e2p(img_bgr, fov_deg=90, u_deg=u_deg, v_deg=v_deg, out_hw=(400, 400), mode='bilinear')
             
+            # Save Pass 1 faces to cache for comparison
+            _, buffer = cv2.imencode(".jpg", face_img)
+            face_id = str(uuid.uuid4())
+            image_cache.set(face_id, buffer.tobytes())
+            face_ids_p1[face_key] = face_id
+            
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                cv2.imwrite(tmp.name, face_img)
+                tmp.write(buffer.tobytes())
                 tmp_path = tmp.name
             
             try:
@@ -255,11 +261,6 @@ def api_predict_360():
         pitch_p1 = (angles_p1['L'] - angles_p1['R']) / 2.0
 
         # --- PASS 2: Refined Estimation ---
-        # We look at the "corrected" directions based on Pass 1
-        # Front: u=0,   v=p1,  in_rot=-r1
-        # Back:  u=180, v=-p1, in_rot=r1
-        # Left:  u=-90, v=-r1, in_rot=-p1
-        # Right: u=90,  v=r1,  in_rot=p1
         refinement_configs = {
             'F': (0, pitch_p1, -roll_p1),
             'B': (180, -pitch_p1, roll_p1),
@@ -268,22 +269,19 @@ def api_predict_360():
         }
 
         angles_p2 = {}
-        face_ids = {}
+        face_ids_p2 = {}
         for face_key in faces_to_predict:
             u_deg, v_deg, in_rot = refinement_configs[face_key]
-            # Refined extraction using initial estimates to level the patches
-            face_img = py360convert.e2p(img_bgr, fov_deg=90, u_deg=u_deg, v_deg=v_deg, 
+            face_img = py360convert.e2p(img_bgr, fov_deg=50, u_deg=u_deg, v_deg=v_deg, 
                                         in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
             
-            # Encode face to JPEG in memory for UI presentation
             _, buffer = cv2.imencode(".jpg", face_img)
-            face_bytes = buffer.tobytes()
             face_id = str(uuid.uuid4())
-            image_cache.set(face_id, face_bytes)
-            face_ids[face_key] = face_id
+            image_cache.set(face_id, buffer.tobytes())
+            face_ids_p2[face_key] = face_id
             
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                tmp.write(face_bytes)
+                tmp.write(buffer.tobytes())
                 tmp_path = tmp.name
             
             try:
@@ -292,28 +290,26 @@ def api_predict_360():
             finally:
                 if os.path.exists(tmp_path): os.remove(tmp_path)
 
-        # Residual correction from Pass 2
         roll_p2 = (angles_p2['F'] - angles_p2['B']) / 2.0
         pitch_p2 = (angles_p2['L'] - angles_p2['R']) / 2.0
 
-        # Final Combined Result
         final_roll = roll_p1 + roll_p2
         final_pitch = pitch_p1 + pitch_p2
         
         return jsonify({
             "roll": final_roll,
             "pitch": final_pitch,
-            "face_angles": {
-                "front": angles_p2['F'], # Show the refined residual angles
-                "back": angles_p2['B'],
-                "left": angles_p2['L'],
-                "right": angles_p2['R']
+            "pass1": {
+                "roll": roll_p1,
+                "pitch": pitch_p1,
+                "face_angles": angles_p1,
+                "face_ids": face_ids_p1
             },
-            "face_ids": {
-                "front": face_ids['F'],
-                "back": face_ids['B'],
-                "left": face_ids['L'],
-                "right": face_ids['R']
+            "pass2_residual": {
+                "roll": roll_p2,
+                "pitch": pitch_p2,
+                "face_angles": angles_p2,
+                "face_ids": face_ids_p2
             },
             "main_id": main_image_id,
             "status": "success"
