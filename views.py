@@ -221,50 +221,93 @@ def api_predict_360():
         if img_bgr is None:
             return jsonify({"error": "Failed to decode image", "status": "error"}), 400
             
-        cube_dict = py360convert.e2c(img_bgr, face_w=400, mode='bilinear', cube_format='dict')
+        # Extract 4 patches (Front, Back, Left, Right) with 120 FOV
+        # e2p(e_img, fov_h, fov_v, u_deg, v_deg, out_hw, mode='bilinear')
+        # u_deg: longitude (-180 to 180), v_deg: latitude (-90 to 90)
+        face_configs = {
+            'F': (0, 0),    # Front
+            'R': (90, 0),   # Right
+            'B': (180, 0),  # Back
+            'L': (-90, 0)   # Left
+        }
         
         faces_to_predict = ['F', 'B', 'L', 'R']
-        angles = {}
         model_name = request.form.get("model", "vit").lower()
         
+        # --- PASS 1: Crude Estimation ---
+        angles_p1 = {}
+        for face_key in faces_to_predict:
+            u_deg, v_deg = face_configs[face_key]
+            # Standard extraction (no rotation/tilt)
+            face_img = py360convert.e2p(img_bgr, fov_deg=90, u_deg=u_deg, v_deg=v_deg, out_hw=(400, 400), mode='bilinear')
+            
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                cv2.imwrite(tmp.name, face_img)
+                tmp_path = tmp.name
+            
+            try:
+                angle = model.predict(model_name, tmp_path, postprocess_and_save=False)
+                angles_p1[face_key] = float(angle)
+            finally:
+                if os.path.exists(tmp_path): os.remove(tmp_path)
+
+        roll_p1 = (angles_p1['F'] - angles_p1['B']) / 2.0
+        pitch_p1 = (angles_p1['L'] - angles_p1['R']) / 2.0
+
+        # --- PASS 2: Refined Estimation ---
+        # We look at the "corrected" directions based on Pass 1
+        # Front: u=0,   v=p1,  in_rot=-r1
+        # Back:  u=180, v=-p1, in_rot=r1
+        # Left:  u=-90, v=-r1, in_rot=-p1
+        # Right: u=90,  v=r1,  in_rot=p1
+        refinement_configs = {
+            'F': (0, pitch_p1, -roll_p1),
+            'B': (180, -pitch_p1, roll_p1),
+            'L': (-90, -roll_p1, -pitch_p1),
+            'R': (90, roll_p1, pitch_p1)
+        }
+
+        angles_p2 = {}
         face_ids = {}
         for face_key in faces_to_predict:
-            face_img = cube_dict[face_key]
+            u_deg, v_deg, in_rot = refinement_configs[face_key]
+            # Refined extraction using initial estimates to level the patches
+            face_img = py360convert.e2p(img_bgr, fov_deg=90, u_deg=u_deg, v_deg=v_deg, 
+                                        in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
             
-            # Encode face to JPEG in memory
+            # Encode face to JPEG in memory for UI presentation
             _, buffer = cv2.imencode(".jpg", face_img)
             face_bytes = buffer.tobytes()
-            
-            # Save face to memory cache
             face_id = str(uuid.uuid4())
             image_cache.set(face_id, face_bytes)
             face_ids[face_key] = face_id
             
-            # Predict angle - we need a temporary file because the model expects a path
-            # But we'll use a tempfile that gets deleted immediately
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                 tmp.write(face_bytes)
                 tmp_path = tmp.name
             
             try:
                 angle = model.predict(model_name, tmp_path, postprocess_and_save=False)
-                angles[face_key] = float(angle)
+                angles_p2[face_key] = float(angle)
             finally:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+                if os.path.exists(tmp_path): os.remove(tmp_path)
 
-        # Calculate Roll and Pitch
-        roll = (angles['F'] - angles['B']) / 2.0
-        pitch = (angles['L'] - angles['R']) / 2.0
+        # Residual correction from Pass 2
+        roll_p2 = (angles_p2['F'] - angles_p2['B']) / 2.0
+        pitch_p2 = (angles_p2['L'] - angles_p2['R']) / 2.0
+
+        # Final Combined Result
+        final_roll = roll_p1 + roll_p2
+        final_pitch = pitch_p1 + pitch_p2
         
         return jsonify({
-            "roll": roll,
-            "pitch": pitch,
+            "roll": final_roll,
+            "pitch": final_pitch,
             "face_angles": {
-                "front": angles['F'],
-                "back": angles['B'],
-                "left": angles['L'],
-                "right": angles['R']
+                "front": angles_p2['F'], # Show the refined residual angles
+                "back": angles_p2['B'],
+                "left": angles_p2['L'],
+                "right": angles_p2['R']
             },
             "face_ids": {
                 "front": face_ids['F'],
