@@ -21,9 +21,6 @@ app = Flask(__name__)
 model = Inference()
 
 @app.route("/")
-def index():
-    return render_template("index.html")
-
 @app.route("/predict_360")
 def predict_360_page():
     return render_template("predict_360.html")
