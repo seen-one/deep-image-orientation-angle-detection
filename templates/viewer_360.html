@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>360° Orientation Viewer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <!-- Using r160 for modern features -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0d0d0d;
+            overflow: hidden;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            cursor: move;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            color: white;
+            background: rgba(20, 20, 20, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            z-index: 100;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 220px;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 20px;
+            padding: 5px 0;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: #333;
+            border-radius: 26px;
+            transition: 0.3s;
+        }
+
+        .toggle-switch:after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: 0.3s;
+        }
+
+        input:checked+.toggle-switch {
+            background: #f2b411;
+        }
+
+        input:checked+.toggle-switch:after {
+            transform: translateX(24px);
+        }
+
+        input {
+            display: none;
+        }
+
+        #mode-label {
+            font-weight: 800;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            color: #888;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        #mode-status {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .stats {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        .stat-label {
+            color: #aaa;
+        }
+
+        .stat-value {
+            font-weight: 700;
+            font-family: monospace;
+            color: #f2b411;
+        }
+
+        .help-text {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 15px;
+            border-radius: 20px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="overlay">
+        <span id="mode-label">VIEWING MODE</span>
+        <span id="mode-status">Original View</span>
+
+        <label class="toggle-container">
+            <span style="font-weight: 600;">Enable Leveling</span>
+            <input type="checkbox" id="toggleCorrection">
+            <div class="toggle-switch"></div>
+        </label>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-label">Pitch:</span>
+                <span class="stat-value" id="p-val">0.00°</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Roll:</span>
+                <span class="stat-value" id="r-val">0.00°</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-text">
+        Drag to Orbit • Scroll to Zoom
+    </div>
+
+    <div id="container"></div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const imageSrc = urlParams.get('img');
+        const pitch = parseFloat(urlParams.get('pitch') || 0);
+        const roll = parseFloat(urlParams.get('roll') || 0);
+
+        document.getElementById('p-val').textContent = pitch.toFixed(2) + '°';
+        document.getElementById('r-val').textContent = roll.toFixed(2) + '°';
+
+        let camera, scene, renderer, sphere, correctionGroup;
+        let isUserInteracting = false, lon = 0, lat = 0, phi = 0, theta = 0;
+        let onPointerDownMouseX = 0, onPointerDownMouseY = 0, onPointerDownLon = 0, onPointerDownLat = 0;
+
+        init();
+
+        function init() {
+            const container = document.getElementById('container');
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+
+            // Correction group allows us to tilt the entire environment
+            correctionGroup = new THREE.Group();
+            scene.add(correctionGroup);
+
+            // Sphere geometry for equirectangular projection
+            const geometry = new THREE.SphereGeometry(500, 60, 40);
+            geometry.scale(-1, 1, 1); // Invert to see from inside
+
+            const texture = new THREE.TextureLoader().load(imageSrc, function (tex) {
+                tex.colorSpace = THREE.SRGBColorSpace;
+                renderer.render(scene, camera);
+            });
+
+            const material = new THREE.MeshBasicMaterial({ map: texture });
+            sphere = new THREE.Mesh(geometry, material);
+            correctionGroup.add(sphere);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setAnimationLoop(animate);
+            container.appendChild(renderer.domElement);
+
+            container.style.touchAction = 'none';
+            container.addEventListener('pointerdown', onPointerDown);
+            document.addEventListener('wheel', onDocumentMouseWheel);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onPointerDown(event) {
+            if (event.isPrimary === false) return;
+            isUserInteracting = true;
+            onPointerDownMouseX = event.clientX;
+            onPointerDownMouseY = event.clientY;
+            onPointerDownLon = lon;
+            onPointerDownLat = lat;
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+        }
+
+        function onPointerMove(event) {
+            if (event.isPrimary === false) return;
+            if (isUserInteracting === true) {
+                lon = (onPointerDownMouseX - event.clientX) * 0.1 + onPointerDownLon;
+                lat = (event.clientY - onPointerDownMouseY) * 0.1 + onPointerDownLat;
+            }
+        }
+
+        function onPointerUp(event) {
+            if (event.isPrimary === false) return;
+            isUserInteracting = false;
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+        }
+
+        function onDocumentMouseWheel(event) {
+            const fov = camera.fov + event.deltaY * 0.05;
+            camera.fov = THREE.MathUtils.clamp(fov, 10, 85);
+            camera.updateProjectionMatrix();
+        }
+
+        function animate() {
+            lat = Math.max(-85, Math.min(85, lat));
+            phi = THREE.MathUtils.degToRad(90 - lat);
+            theta = THREE.MathUtils.degToRad(lon);
+
+            const x = 500 * Math.sin(phi) * Math.cos(theta);
+            const y = 500 * Math.cos(phi);
+            const z = 500 * Math.sin(phi) * Math.sin(theta);
+
+            camera.lookAt(x, y, z);
+            renderer.render(scene, camera);
+        }
+
+        document.getElementById('toggleCorrection').addEventListener('change', function (e) {
+            const isChecked = e.target.checked;
+            const status = document.getElementById('mode-status');
+            if (isChecked) {
+                status.textContent = "Leveled View";
+                status.style.color = "#f2b411";
+                // Correct Axis Mapping: 
+                // X-axis is Front-Back orientation in this Three.js setup -> Roll
+                // Z-axis is Right-Left orientation -> Pitch
+                // User reported Roll was still swapped
+                correctionGroup.rotation.x = THREE.MathUtils.degToRad(-roll);
+                correctionGroup.rotation.z = THREE.MathUtils.degToRad(pitch);
+            } else {
+                status.textContent = "Original View";
+                status.style.color = "#fff";
+                correctionGroup.rotation.x = 0;
+                correctionGroup.rotation.z = 0;
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>360 Orientation Analysis</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style4.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style5.css') }}">
+    <style>
+        body {
+            background: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        #submitBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(209, 63, 68, 0.4);
+        }
+
+        .face-container {
+            border: 2px solid #eee;
+            background: #000;
+        }
+
+        .face-img {
+            display: block;
+            width: 100%;
+        }
+
+        .custom-switch .custom-control-label::before {
+            background-color: #ddd;
+        }
+
+        .custom-switch .custom-control-input:checked~.custom-control-label::before {
+            background-color: #d13f44;
+            border-color: #d13f44;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-11">
+                <div class="card shadow-lg border-0" style="border-radius: 15px; background: #fff;">
+                    <div class="card-body p-4 p-md-5">
+                        <h2 class="text-center mb-4" style="color: #d13f44; font-weight: 700;">360° Photo Orientation
+                            Correction</h2>
+
+                        <div id="setup-section">
+                            <p class="text-muted text-center mb-5">Upload an equirectangular image or paste a URL to
+                                calculate the required Pitch and Roll for horizon correction.</p>
+
+                            <form id="uploadForm">
+                                <div class="form-group mb-4">
+                                    <label for="file" class="form-label" style="font-weight: 600;">Select 360°
+                                        Image</label>
+                                    <input type="file" class="form-control-file" id="file" name="file" accept="image/*">
+                                </div>
+
+                                <div class="text-center my-3">
+                                    <span class="badge badge-secondary px-3 py-2" style="border-radius: 20px;">OR</span>
+                                </div>
+
+                                <div class="form-group mb-4">
+                                    <label for="url" class="form-label" style="font-weight: 600;">Paste Image
+                                        URL</label>
+                                    <input type="url" class="form-control" id="url" name="url"
+                                        placeholder="https://example.com/image.jpg">
+                                </div>
+
+                                <div class="form-group mb-4">
+                                    <label for="model" class="form-label" style="font-weight: 600;">Model</label>
+                                    <select class="form-control custom-select" id="model" name="model">
+                                        <option value="ViT" selected>ViT (Transformer)</option>
+                                    </select>
+                                </div>
+
+                                <button type="submit" id="submitBtn" class="btn btn-block py-3 mt-4"
+                                    style="background: linear-gradient(to right, #d13f44, #f2b411); color: white; border-radius: 30px; font-weight: 700; font-size: 1.1rem; border: none; transition: transform 0.2s;">
+                                    Analyze & Preview In New Tab
+                                </button>
+                            </form>
+
+                            <div id="loading" class="text-center mt-5" style="display: none;">
+                                <div class="spinner-border text-danger" role="status">
+                                    <span class="sr-only">Processing...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Analyzing 360 faces... This may take a few seconds.</p>
+                            </div>
+                        </div>
+
+                        <div id="results" class="mt-4" style="display: none;">
+                            <div class="row">
+                                <div class="col-lg-12 text-center mb-4">
+                                    <div class="alert alert-success d-inline-block px-5" style="border-radius: 30px;">
+                                        <i class="fas fa-check-circle mr-2"></i> Analysis Complete! A preview tab should
+                                        have opened.
+                                    </div>
+                                </div>
+
+                                <!-- Overall Correction -->
+                                <div class="col-lg-5">
+                                    <h4 class="mb-4" style="font-weight: 600;">Correction Parameters</h4>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="p-3 bg-light rounded shadow-sm mb-3 text-center">
+                                                <h5 class="text-muted mb-1 small">ROLL OFFSET</h5>
+                                                <h3 id="rollVal" style="color: #d13f44; font-weight: 800;">0.00°</h3>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="p-3 bg-light rounded shadow-sm mb-4 text-center">
+                                                <h5 class="text-muted mb-1 small">PITCH OFFSET</h5>
+                                                <h3 id="pitchVal" style="color: #f2b411; font-weight: 800;">0.00°</h3>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button id="reopenBtn" class="btn btn-primary btn-block py-3 mb-3"
+                                            style="border-radius: 30px; font-weight: 600;">
+                                            <i class="fas fa-external-link-alt mr-2"></i> Re-open 3D Preview
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-block"
+                                            onclick="location.reload()">Start New Analysis</button>
+                                    </div>
+                                </div>
+
+                                <!-- Cubemap Faces -->
+                                <div class="col-lg-7">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h4 style="font-weight: 600; margin: 0;">Cubemap Faces</h4>
+                                        <div class="custom-control custom-switch">
+                                            <input type="checkbox" class="custom-control-input"
+                                                id="toggleFaceCorrection">
+                                            <label class="custom-control-label font-weight-bold"
+                                                for="toggleFaceCorrection">SHOW CORRECTED</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="row no-gutters text-center">
+                                        <div class="col-3 p-1">
+                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
+                                                style="position: relative; aspect-ratio: 1/1;">
+                                                <img id="img-front" class="face-img" src=""
+                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
+                                                <div class="face-label"
+                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
+                                                    FRONT</div>
+                                            </div>
+                                            <div class="small mt-1 font-weight-bold" id="val-front">0.00°</div>
+                                        </div>
+                                        <div class="col-3 p-1">
+                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
+                                                style="position: relative; aspect-ratio: 1/1;">
+                                                <img id="img-right" class="face-img" src=""
+                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
+                                                <div class="face-label"
+                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
+                                                    RIGHT</div>
+                                            </div>
+                                            <div class="small mt-1 font-weight-bold" id="val-right">0.00°</div>
+                                        </div>
+                                        <div class="col-3 p-1">
+                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
+                                                style="position: relative; aspect-ratio: 1/1;">
+                                                <img id="img-back" class="face-img" src=""
+                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
+                                                <div class="face-label"
+                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
+                                                    BACK</div>
+                                            </div>
+                                            <div class="small mt-1 font-weight-bold" id="val-back">0.00°</div>
+                                        </div>
+                                        <div class="col-3 p-1">
+                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
+                                                style="position: relative; aspect-ratio: 1/1;">
+                                                <img id="img-left" class="face-img" src=""
+                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
+                                                <div class="face-label"
+                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
+                                                    LEFT</div>
+                                            </div>
+                                            <div class="small mt-1 font-weight-bold" id="val-left">0.00°</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="error" class="alert alert-danger mt-4" style="display: none; border-radius: 10px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+    <script>
+        let lastResult = null;
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const form = e.target;
+            const formData = new FormData(form);
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const setupSection = document.getElementById('setup-section');
+            const results = document.getElementById('results');
+            const error = document.getElementById('error');
+
+            // Reset UI
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/predict_360', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    lastResult = data;
+
+                    document.getElementById('rollVal').textContent = data.roll.toFixed(2) + '°';
+                    document.getElementById('pitchVal').textContent = data.pitch.toFixed(2) + '°';
+
+                    // Populate Face Angles
+                    document.getElementById('val-front').textContent = data.face_angles.front.toFixed(2) + '°';
+                    document.getElementById('val-back').textContent = data.face_angles.back.toFixed(2) + '°';
+                    document.getElementById('val-left').textContent = data.face_angles.left.toFixed(2) + '°';
+                    document.getElementById('val-right').textContent = data.face_angles.right.toFixed(2) + '°';
+
+                    // Populate Face Images
+                    document.getElementById('img-front').src = `/input/${data.face_filenames.front}`;
+                    document.getElementById('img-back').src = `/input/${data.face_filenames.back}`;
+                    document.getElementById('img-left').src = `/input/${data.face_filenames.left}`;
+                    document.getElementById('img-right').src = `/input/${data.face_filenames.right}`;
+
+                    // Reset transforms
+                    document.getElementById('toggleFaceCorrection').checked = false;
+                    applyFaceRotations(false);
+
+                    setupSection.style.display = 'none';
+                    results.style.display = 'block';
+
+                    // Open Preview in New Tab
+                    openPreviewTab(data);
+                } else {
+                    error.textContent = data.error || 'An error occurred during processing.';
+                    error.style.display = 'block';
+                    submitBtn.disabled = false;
+                    loading.style.display = 'none';
+                }
+            } catch (err) {
+                console.error(err);
+                error.textContent = 'Failed to connect to the server or process the image.';
+                error.style.display = 'block';
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        function openPreviewTab(data) {
+            const params = new URLSearchParams({
+                img: `/input/${data.filename}`,
+                pitch: data.pitch,
+                roll: data.roll
+            });
+            window.open(`/viewer_360?${params.toString()}`, '_blank');
+        }
+
+        document.getElementById('reopenBtn').addEventListener('click', () => {
+            if (lastResult) {
+                openPreviewTab(lastResult);
+            }
+        });
+
+        document.getElementById('toggleFaceCorrection').addEventListener('change', function (e) {
+            applyFaceRotations(e.target.checked);
+        });
+
+        function applyFaceRotations(enabled) {
+            if (!lastResult) return;
+
+            const faces = ['front', 'back', 'left', 'right'];
+            faces.forEach(face => {
+                const img = document.getElementById(`img-${face}`);
+                if (enabled) {
+                    // User reported opposite direction
+                    const angle = lastResult.face_angles[face];
+                    img.style.transform = `rotate(${angle}deg)`; // User requested no zoom/scale
+                } else {
+                    img.style.transform = 'rotate(0deg) scale(1)';
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
