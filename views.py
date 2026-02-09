@@ -243,7 +243,7 @@ def api_predict_360():
         face_ids_p1 = {}
         for face_key in faces_to_predict:
             u_deg, v_deg = face_configs[face_key]
-            face_img = py360convert.e2p(img_bgr, fov_deg=90, u_deg=u_deg, v_deg=v_deg, out_hw=(400, 400), mode='bilinear')
+            face_img = py360convert.e2p(img_bgr, fov_deg=120, u_deg=u_deg, v_deg=v_deg, out_hw=(400, 400), mode='bilinear')
             
             # Save Pass 1 faces to cache for comparison
             _, buffer = cv2.imencode(".jpg", face_img)
@@ -276,7 +276,7 @@ def api_predict_360():
         face_ids_p2 = {}
         for face_key in faces_to_predict:
             u_deg, v_deg, in_rot = refinement_configs[face_key]
-            face_img = py360convert.e2p(img_bgr, fov_deg=60, u_deg=u_deg, v_deg=v_deg, 
+            face_img = py360convert.e2p(img_bgr, fov_deg=90, u_deg=u_deg, v_deg=v_deg, 
                                         in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
             
             _, buffer = cv2.imencode(".jpg", face_img)

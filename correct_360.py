@@ -53,7 +53,7 @@ def main():
     for face_key in faces_to_predict:
         u_deg, v_deg = face_configs[face_key]
         # Standard extraction (no rotation/tilt)
-        face_img = py360convert.e2p(img, fov_deg=90, u_deg=u_deg, v_deg=v_deg, out_hw=(400, 400), mode='bilinear')
+        face_img = py360convert.e2p(img, fov_deg=120, u_deg=u_deg, v_deg=v_deg, out_hw=(400, 400), mode='bilinear')
         
         face_path = os.path.join(temp_dir, f"temp_face_{face_key}_p1.jpg")
         cv2.imwrite(face_path, face_img)
@@ -82,7 +82,7 @@ def main():
     for face_key in faces_to_predict:
         u_deg, v_deg, in_rot = refinement_configs[face_key]
         # Using narrower 50 FOV for better precision in refinement
-        face_img = py360convert.e2p(img, fov_deg=60, u_deg=u_deg, v_deg=v_deg, 
+        face_img = py360convert.e2p(img, fov_deg=90, u_deg=u_deg, v_deg=v_deg, 
                                     in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
         
         face_path = os.path.join(temp_dir, f"temp_face_{face_key}_p2.jpg")
