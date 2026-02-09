@@ -247,11 +247,11 @@
                     document.getElementById('val-left').textContent = data.face_angles.left.toFixed(2) + '°';
                     document.getElementById('val-right').textContent = data.face_angles.right.toFixed(2) + '°';
 
-                    // Populate Face Images
-                    document.getElementById('img-front').src = `/input/${data.face_filenames.front}`;
-                    document.getElementById('img-back').src = `/input/${data.face_filenames.back}`;
-                    document.getElementById('img-left').src = `/input/${data.face_filenames.left}`;
-                    document.getElementById('img-right').src = `/input/${data.face_filenames.right}`;
+                    // Populate Face Images from memory cache
+                    document.getElementById('img-front').src = `/mem_image/${data.face_ids.front}`;
+                    document.getElementById('img-back').src = `/mem_image/${data.face_ids.back}`;
+                    document.getElementById('img-left').src = `/mem_image/${data.face_ids.left}`;
+                    document.getElementById('img-right').src = `/mem_image/${data.face_ids.right}`;
 
                     // Reset transforms
                     document.getElementById('toggleFaceCorrection').checked = false;
@@ -279,7 +279,7 @@
 
         function openPreviewTab(data) {
             const params = new URLSearchParams({
-                img: `/input/${data.filename}`,
+                img: `/mem_image/${data.main_id}`,
                 pitch: data.pitch,
                 roll: data.roll
             });
