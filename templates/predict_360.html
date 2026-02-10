@@ -73,8 +73,16 @@
                                 <div class="form-group mb-4">
                                     <label for="url" class="form-label" style="font-weight: 600;">Paste Image
                                         URL</label>
-                                    <input type="url" class="form-control" id="url" name="url"
-                                        placeholder="https://example.com/image.jpg">
+                                    <div class="input-group">
+                                        <input type="url" class="form-control" id="url" name="url"
+                                            placeholder="https://example.com/image.jpg">
+                                        <div class="input-group-append">
+                                            <button type="button" id="randomBtn" class="btn btn-outline-danger"
+                                                title="Pick Random Panoramax Image">
+                                                <i class="fas fa-dice"></i> Random
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="row">
@@ -138,7 +146,13 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="mt-2">
+                                    <div class="mt-2 text-center">
+                                        <div id="sourceLinkContainer" style="display: none;" class="mb-3">
+                                            <a id="sourceLink" href="#" target="_blank"
+                                                class="btn btn-sm btn-outline-info" style="border-radius: 20px;">
+                                                <i class="fas fa-external-link-alt mr-1"></i> View on Panoramax
+                                            </a>
+                                        </div>
                                         <button id="reopenBtn" class="btn btn-primary btn-block py-3 mb-3"
                                             style="border-radius: 30px; font-weight: 600;">
                                             <i class="fas fa-external-link-alt mr-2"></i> Re-open 3D Preview
@@ -313,7 +327,16 @@
 
                 if (data.status === 'success') {
                     lastResult = data;
-                    renderResults();
+
+                    // Check if current URL is a Panoramax HD image
+                    const urlVal = document.getElementById('url').value;
+                    let panoramaxId = null;
+                    if (urlVal.includes('api.panoramax.xyz/api/pictures/')) {
+                        const match = urlVal.match(/pictures\/(.+)\/hd\.jpg/);
+                        if (match) panoramaxId = match[1];
+                    }
+
+                    renderResults(panoramaxId);
                     setupSection.style.display = 'none';
                     results.style.display = 'block';
                     openPreviewTab(data);
@@ -332,11 +355,21 @@
             }
         });
 
-        function renderResults() {
+        function renderResults(panoramaxId = null) {
             if (!lastResult) return;
 
             document.getElementById('rollVal').textContent = lastResult.roll.toFixed(2) + '°';
             document.getElementById('pitchVal').textContent = lastResult.pitch.toFixed(2) + '°';
+
+            // Source Link
+            const sourceContainer = document.getElementById('sourceLinkContainer');
+            if (panoramaxId) {
+                const sourceLink = document.getElementById('sourceLink');
+                sourceLink.href = `https://api.panoramax.xyz/#focus=pic&pic=${panoramaxId}`;
+                sourceContainer.style.display = 'block';
+            } else {
+                sourceContainer.style.display = 'none';
+            }
 
             // Update Breakdown Table
             document.getElementById('p1-fov').textContent = lastResult.fov.pass1.toFixed(0) + '°';
@@ -403,6 +436,35 @@
 
         document.getElementById('reopenBtn').addEventListener('click', () => {
             if (lastResult) openPreviewTab(lastResult);
+        });
+
+        // Random Button Logic
+        document.getElementById('randomBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('randomBtn');
+            const urlInput = document.getElementById('url');
+            const originalText = btn.innerHTML;
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+
+                const response = await fetch('/api/random_id');
+                const data = await response.json();
+
+                if (data.id) {
+                    urlInput.value = `https://api.panoramax.xyz/api/pictures/${data.id}/hd.jpg`;
+                    // Trigger form submission
+                    document.getElementById('uploadForm').dispatchEvent(new Event('submit'));
+                } else {
+                    alert('Failed to get random image ID');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error fetching random image');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         });
     </script>
 </body>

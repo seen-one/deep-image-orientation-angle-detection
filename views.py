@@ -17,6 +17,7 @@ from flask import send_file
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 from urllib.parse import urlparse
+import random
 
 app = Flask(__name__)
 
@@ -58,6 +59,24 @@ class ImageCache:
         return None
 
 image_cache = ImageCache()
+
+# Cache for Panoramax IDs
+panoramax_ids = []
+def load_panoramax_ids():
+    global panoramax_ids
+    if not panoramax_ids:
+        ids_path = os.path.join(ROOT_DIR, "random_panoramax_bike_ids.txt")
+        if os.path.exists(ids_path):
+            with open(ids_path, 'r') as f:
+                panoramax_ids = [line.strip() for line in f if line.strip()]
+    return panoramax_ids
+
+@app.route("/api/random_id")
+def get_random_id():
+    ids = load_panoramax_ids()
+    if ids:
+        return jsonify({"id": random.choice(ids)})
+    return jsonify({"error": "No IDs found"}), 404
 
 @app.route("/mem_image/<image_id>")
 def get_mem_image(image_id):
