@@ -314,6 +314,9 @@
 
             // Reset UI
             submitBtn.disabled = true;
+            const randomBtn = document.getElementById('randomBtn');
+            if (randomBtn) randomBtn.disabled = true;
+
             loading.style.display = 'block';
             error.style.display = 'none';
 
@@ -344,6 +347,7 @@
                     error.textContent = data.error || 'An error occurred during processing.';
                     error.style.display = 'block';
                     submitBtn.disabled = false;
+                    if (randomBtn) randomBtn.disabled = false;
                     loading.style.display = 'none';
                 }
             } catch (err) {
@@ -351,6 +355,7 @@
                 error.textContent = 'Failed to connect to the server or process the image.';
                 error.style.display = 'block';
                 submitBtn.disabled = false;
+                if (randomBtn) randomBtn.disabled = false;
                 loading.style.display = 'none';
             }
         });
@@ -453,15 +458,18 @@
 
                 if (data.id) {
                     urlInput.value = `https://api.panoramax.xyz/api/pictures/${data.id}/hd.jpg`;
-                    // Trigger form submission
+                    // Restore text immediately so if we come back it looks right
+                    btn.innerHTML = originalText;
+                    // Trigger form submission - this will keep the button disabled
                     document.getElementById('uploadForm').dispatchEvent(new Event('submit'));
                 } else {
                     alert('Failed to get random image ID');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
                 }
             } catch (err) {
                 console.error(err);
                 alert('Error fetching random image');
-            } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }
