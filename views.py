@@ -18,6 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 from urllib.parse import urlparse
 import random
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 
@@ -244,9 +245,7 @@ def api_predict_360():
         if img_bgr is None:
             return jsonify({"error": "Failed to decode image", "status": "error"}), 400
             
-        # Extract 4 patches (Front, Back, Left, Right) with 120 FOV
-        # e2p(e_img, fov_h, fov_v, u_deg, v_deg, out_hw, mode='bilinear')
-        # u_deg: longitude (-180 to 180), v_deg: latitude (-90 to 90)
+        face_keys = ['F', 'R', 'B', 'L']
         face_configs = {
             'F': (0, 0),    # Front
             'R': (90, 0),   # Right
@@ -254,68 +253,64 @@ def api_predict_360():
             'L': (-90, 0)   # Left
         }
         
-        faces_to_predict = ['F', 'B', 'L', 'R']
         model_name = request.form.get("model", "vit").lower()
         
         # FOV Configuration
         fov_p1 = float(request.form.get("fov_pass1", 120))
-        fov_p2 = float(request.form.get("fov_pass2", 60))
+        fov_p2_fb = float(request.form.get("fov_pass2_fb", 60))
+        fov_p2_lr = float(request.form.get("fov_pass2_lr", 60))
         
+        # Helper for parallel extraction
+        def extract_face(face_key, fov, u_deg, v_deg, in_rot=0):
+            face_img = py360convert.e2p(img_bgr, fov_deg=fov, u_deg=u_deg, v_deg=v_deg, 
+                                        in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
+            return face_key, face_img
+
         # --- PASS 1: Crude Estimation ---
-        angles_p1 = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(extract_face, k, fov_p1, *face_configs[k]) for k in face_keys]
+            results_p1 = dict(f.result() for f in futures)
+
+        # Batch prediction for Pass 1
+        batch_imgs_p1 = [results_p1[k] for k in face_keys]
+        batch_angles_p1 = model.predict_batch(model_name, batch_imgs_p1)
+        angles_p1 = dict(zip(face_keys, batch_angles_p1))
+
+        # Save Pass 1 faces to cache
         face_ids_p1 = {}
-        for face_key in faces_to_predict:
-            u_deg, v_deg = face_configs[face_key]
-            face_img = py360convert.e2p(img_bgr, fov_deg=fov_p1, u_deg=u_deg, v_deg=v_deg, out_hw=(400, 400), mode='bilinear')
-            
-            # Save Pass 1 faces to cache for comparison
-            _, buffer = cv2.imencode(".jpg", face_img)
+        for face_key in face_keys:
+            _, buffer = cv2.imencode(".jpg", results_p1[face_key])
             face_id = str(uuid.uuid4())
             image_cache.set(face_id, buffer.tobytes())
             face_ids_p1[face_key] = face_id
-            
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                tmp.write(buffer.tobytes())
-                tmp_path = tmp.name
-            
-            try:
-                angle = model.predict(model_name, tmp_path, postprocess_and_save=False)
-                angles_p1[face_key] = float(angle)
-            finally:
-                if os.path.exists(tmp_path): os.remove(tmp_path)
 
         roll_p1 = (angles_p1['F'] - angles_p1['B']) / 2.0
         pitch_p1 = (angles_p1['L'] - angles_p1['R']) / 2.0
 
         # --- PASS 2: Refined Estimation ---
-        refinement_configs = {
-            'F': (0, pitch_p1, -roll_p1),
-            'B': (180, -pitch_p1, roll_p1),
-            'L': (-90, -roll_p1, -pitch_p1),
-            'R': (90, roll_p1, pitch_p1)
+        refinement_params = {
+            'F': (fov_p2_fb, 0, pitch_p1, -roll_p1),
+            'B': (fov_p2_fb, 180, -pitch_p1, roll_p1),
+            'L': (fov_p2_lr, -90, -roll_p1, -pitch_p1),
+            'R': (fov_p2_lr, 90, roll_p1, pitch_p1)
         }
 
-        angles_p2 = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(extract_face, k, *refinement_params[k]) for k in face_keys]
+            results_p2 = dict(f.result() for f in futures)
+
+        # Batch prediction for Pass 2
+        batch_imgs_p2 = [results_p2[k] for k in face_keys]
+        batch_angles_p2 = model.predict_batch(model_name, batch_imgs_p2)
+        angles_p2 = dict(zip(face_keys, batch_angles_p2))
+
+        # Save Pass 2 faces to cache
         face_ids_p2 = {}
-        for face_key in faces_to_predict:
-            u_deg, v_deg, in_rot = refinement_configs[face_key]
-            face_img = py360convert.e2p(img_bgr, fov_deg=fov_p2, u_deg=u_deg, v_deg=v_deg, 
-                                        in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
-            
-            _, buffer = cv2.imencode(".jpg", face_img)
+        for face_key in face_keys:
+            _, buffer = cv2.imencode(".jpg", results_p2[face_key])
             face_id = str(uuid.uuid4())
             image_cache.set(face_id, buffer.tobytes())
             face_ids_p2[face_key] = face_id
-            
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                tmp.write(buffer.tobytes())
-                tmp_path = tmp.name
-            
-            try:
-                angle = model.predict(model_name, tmp_path, postprocess_and_save=False)
-                angles_p2[face_key] = float(angle)
-            finally:
-                if os.path.exists(tmp_path): os.remove(tmp_path)
 
         roll_p2 = (angles_p2['F'] - angles_p2['B']) / 2.0
         pitch_p2 = (angles_p2['L'] - angles_p2['R']) / 2.0
@@ -328,7 +323,8 @@ def api_predict_360():
             "pitch": final_pitch,
             "fov": {
                 "pass1": fov_p1,
-                "pass2": fov_p2
+                "pass2_fb": fov_p2_fb,
+                "pass2_lr": fov_p2_lr
             },
             "pass1": {
                 "roll": roll_p1,

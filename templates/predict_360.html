@@ -86,20 +86,28 @@
                                 </div>
 
                                 <div class="row">
-                                    <div class="col-6">
+                                    <div class="col-4">
                                         <div class="form-group mb-4">
                                             <label for="fov_pass1" class="form-label" style="font-weight: 600;">Pass 1
-                                                FOV (deg)</label>
+                                                FOV</label>
                                             <input type="number" class="form-control" id="fov_pass1" name="fov_pass1"
                                                 value="120" step="1" min="10" max="180">
                                         </div>
                                     </div>
-                                    <div class="col-6">
+                                    <div class="col-4">
                                         <div class="form-group mb-4">
-                                            <label for="fov_pass2" class="form-label" style="font-weight: 600;">Pass 2
-                                                FOV (deg)</label>
-                                            <input type="number" class="form-control" id="fov_pass2" name="fov_pass2"
-                                                value="90" step="1" min="10" max="180">
+                                            <label for="fov_pass2_fb" class="form-label" style="font-weight: 600;">Pass
+                                                2 FOV (FB)</label>
+                                            <input type="number" class="form-control" id="fov_pass2_fb"
+                                                name="fov_pass2_fb" value="60" step="1" min="10" max="180">
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="form-group mb-4">
+                                            <label for="fov_pass2_lr" class="form-label" style="font-weight: 600;">Pass
+                                                2 FOV (LR)</label>
+                                            <input type="number" class="form-control" id="fov_pass2_lr"
+                                                name="fov_pass2_lr" value="60" step="1" min="10" max="180">
                                         </div>
                                     </div>
                                 </div>
@@ -183,7 +191,7 @@
                                                 </tr>
                                                 <tr>
                                                     <td>Pass 2 (Refined)</td>
-                                                    <td class="text-center" id="p2-fov">90°</td>
+                                                    <td class="text-center" id="p2-fov">60°/60°</td>
                                                     <td class="text-center font-weight-bold" id="p2-roll">0.00°</td>
                                                     <td class="text-center font-weight-bold" id="p2-pitch">0.00°</td>
                                                 </tr>
@@ -287,18 +295,23 @@
         // Load saved FOV values on page load
         document.addEventListener('DOMContentLoaded', () => {
             const savedFov1 = localStorage.getItem('fov_pass1');
-            const savedFov2 = localStorage.getItem('fov_pass2');
+            const savedFov2fb = localStorage.getItem('fov_pass2_fb');
+            const savedFov2lr = localStorage.getItem('fov_pass2_lr');
 
             if (savedFov1) document.getElementById('fov_pass1').value = savedFov1;
-            if (savedFov2) document.getElementById('fov_pass2').value = savedFov2;
+            if (savedFov2fb) document.getElementById('fov_pass2_fb').value = savedFov2fb;
+            if (savedFov2lr) document.getElementById('fov_pass2_lr').value = savedFov2lr;
         });
 
         // Save FOV values when they change
         document.getElementById('fov_pass1').addEventListener('change', (e) => {
             localStorage.setItem('fov_pass1', e.target.value);
         });
-        document.getElementById('fov_pass2').addEventListener('change', (e) => {
-            localStorage.setItem('fov_pass2', e.target.value);
+        document.getElementById('fov_pass2_fb').addEventListener('change', (e) => {
+            localStorage.setItem('fov_pass2_fb', e.target.value);
+        });
+        document.getElementById('fov_pass2_lr').addEventListener('change', (e) => {
+            localStorage.setItem('fov_pass2_lr', e.target.value);
         });
 
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
@@ -380,7 +393,7 @@
             document.getElementById('p1-fov').textContent = lastResult.fov.pass1.toFixed(0) + '°';
             document.getElementById('p1-roll').textContent = lastResult.pass1.roll.toFixed(2) + '°';
             document.getElementById('p1-pitch').textContent = lastResult.pass1.pitch.toFixed(2) + '°';
-            document.getElementById('p2-fov').textContent = lastResult.fov.pass2.toFixed(0) + '°';
+            document.getElementById('p2-fov').textContent = `${lastResult.fov.pass2_fb.toFixed(0)}°/${lastResult.fov.pass2_lr.toFixed(0)}°`;
             document.getElementById('p2-roll').textContent = lastResult.pass2_residual.roll.toFixed(2) + '°';
             document.getElementById('p2-pitch').textContent = lastResult.pass2_residual.pitch.toFixed(2) + '°';
             document.getElementById('final-roll-t').textContent = lastResult.roll.toFixed(2) + '°';

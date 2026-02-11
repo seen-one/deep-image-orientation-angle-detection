@@ -1,4 +1,5 @@
 from PIL import Image
+import cv2
 import numpy as np
 from transformers import ViTFeatureExtractor
 feature_extractor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch16-224')
@@ -9,33 +10,47 @@ from loguru import logger
 import datetime
 import re
 
-def preprocess(model_name, image_path):
+def preprocess(model_name, image_input):
+    """
+    image_input: can be a string (path), a numpy array, or a list/tuple of them.
+    """
     if model_name in ["vit", "tag-cnn"]:
         image_size = 224
     else:
         image_size = 299
 
-    img = Image.open(image_path)
-    img = img.resize((image_size, image_size))
-    img = np.array(img)
+    images = []
+    if not isinstance(image_input, (list, tuple)):
+        image_input = [image_input]
+
+    for item in image_input:
+        if isinstance(item, str):
+            img = Image.open(item)
+        elif isinstance(item, np.ndarray):
+            # Expecting BGR from OpenCV, convert to RGB for PIL
+            img = Image.fromarray(cv2.cvtColor(item, cv2.COLOR_BGR2RGB))
+        else:
+            img = item # Assume it's already a PIL image
+
+        img = img.resize((image_size, image_size))
+        images.append(np.array(img))
     
     if model_name == "vit":
-        X_vit = [img]
-        X_vit = feature_extractor(images=X_vit, return_tensors="pt")["pixel_values"]
+        X_vit = feature_extractor(images=images, return_tensors="pt")["pixel_values"]
         X_vit = np.array(X_vit)
         X = X_vit
 
     elif model_name == "tag-cnn":
-        X_vit = [img]
-        X_vit = feature_extractor(images=X_vit, return_tensors="pt")["pixel_values"]
+        X_vit = feature_extractor(images=images, return_tensors="pt")["pixel_values"]
         X_vit = np.array(X_vit)
-
-        img = np.expand_dims(img, axis=0)
-        X = [X_vit, img]
+        
+        # Original code used np.expand_dims(img, axis=0) for single image.
+        # For batched tag-cnn, we'd need a stack of images.
+        stacked_imgs = np.stack(images, axis=0)
+        X = [X_vit, stacked_imgs]
 
     elif model_name in ["efficientnetv2b2", "en"]:
-        img = np.expand_dims(img, axis=0)
-        X = img
+        X = np.stack(images, axis=0)
 
     return X
 
