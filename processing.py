@@ -36,7 +36,7 @@ def preprocess(model_name, image_input):
         images.append(np.array(img))
     
     if model_name == "vit":
-        X_vit = feature_extractor(images=images, return_tensors="pt")["pixel_values"]
+        X_vit = feature_extractor(images=images, return_tensors="tf")["pixel_values"]
         X_vit = np.array(X_vit)
         X = X_vit
 
