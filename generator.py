@@ -150,7 +150,7 @@ class RotGenerator(Sequence):
                 pass
         
         if self.is_vit:
-            X = feature_extractor(images=X, return_tensors="pt")["pixel_values"]
+            X = feature_extractor(images=X, return_tensors="tf")["pixel_values"]
             X = np.array(X)
         else:
             X = np.concatenate(X, axis=0)
@@ -217,7 +217,7 @@ class ValidationTestGenerator(Sequence):
                 pass
         
         if self.is_vit:
-            X = feature_extractor(images=X, return_tensors="pt")["pixel_values"]
+            X = feature_extractor(images=X, return_tensors="tf")["pixel_values"]
             X = np.array(X)
         else:
             X = np.concatenate(X, axis=0)
