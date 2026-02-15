@@ -59,7 +59,7 @@ class ImageCache:
             return self.cache[key]
         return None
 
-image_cache = ImageCache()
+image_cache = ImageCache(max_size=300)
 
 # Cache for Panoramax IDs
 panoramax_ids = []
@@ -241,105 +241,192 @@ def api_predict_360():
         # Load image from bytes
         nparr = np.frombuffer(image_bytes, np.uint8)
         img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if img_bgr is None:
             return jsonify({"error": "Failed to decode image", "status": "error"}), 400
-            
-        face_keys = ['F', 'R', 'B', 'L']
-        face_configs = {
-            'F': (0, 0),    # Front
-            'R': (90, 0),   # Right
-            'B': (180, 0),  # Back
-            'L': (-90, 0)   # Left
-        }
-        
+
         model_name = request.form.get("model", "vit").lower()
-        
-        # FOV Configuration
-        fov_p1 = float(request.form.get("fov_pass1", 120))
-        fov_p2_fb = float(request.form.get("fov_pass2_fb", 60))
-        fov_p2_lr = float(request.form.get("fov_pass2_lr", 60))
-        
-        # Helper for parallel extraction
-        def extract_face(face_key, fov, u_deg, v_deg, in_rot=0):
-            face_img = py360convert.e2p(img_bgr, fov_deg=fov, u_deg=u_deg, v_deg=v_deg, 
-                                        in_rot_deg=in_rot, out_hw=(400, 400), mode='bilinear')
-            return face_key, face_img
+        fov_deg = float(request.form.get("fov", 60))
+        inlier_threshold_deg = float(request.form.get("inlier_threshold_deg", 2.0))
+        sample_count = int(request.form.get("sample_count", 36))
 
-        # --- PASS 1: Crude Estimation ---
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(extract_face, k, fov_p1, *face_configs[k]) for k in face_keys]
-            results_p1 = dict(f.result() for f in futures)
+        if sample_count < 4:
+            return jsonify({"error": "sample_count should be >= 4", "status": "error"}), 400
 
-        # Batch prediction for Pass 1
-        batch_imgs_p1 = [results_p1[k] for k in face_keys]
-        batch_angles_p1 = model.predict_batch(model_name, batch_imgs_p1)
-        angles_p1 = dict(zip(face_keys, batch_angles_p1))
+        sample_yaws = np.linspace(0, 360, sample_count, endpoint=False, dtype=np.float32)
 
-        # Save Pass 1 faces to cache
-        face_ids_p1 = {}
-        for face_key in face_keys:
-            _, buffer = cv2.imencode(".jpg", results_p1[face_key])
-            face_id = str(uuid.uuid4())
-            image_cache.set(face_id, buffer.tobytes())
-            face_ids_p1[face_key] = face_id
+        def extract_sample(idx, yaw_deg):
+            sample_img = py360convert.e2p(
+                img_bgr,
+                fov_deg=fov_deg,
+                u_deg=float(yaw_deg),
+                v_deg=0.0,
+                in_rot_deg=0.0,
+                out_hw=(400, 400),
+                mode='bilinear'
+            )
+            return idx, sample_img
 
-        roll_p1 = (angles_p1['F'] - angles_p1['B']) / 2.0
-        pitch_p1 = (angles_p1['L'] - angles_p1['R']) / 2.0
+        max_workers = min(8, sample_count)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(extract_sample, i, y) for i, y in enumerate(sample_yaws)]
+            sample_images = [None] * sample_count
+            for future in futures:
+                idx, sample_img = future.result()
+                sample_images[idx] = sample_img
 
-        # --- PASS 2: Refined Estimation ---
-        refinement_params = {
-            'F': (fov_p2_fb, 0, pitch_p1, -roll_p1),
-            'B': (fov_p2_fb, 180, -pitch_p1, roll_p1),
-            'L': (fov_p2_lr, -90, -roll_p1, -pitch_p1),
-            'R': (fov_p2_lr, 90, roll_p1, pitch_p1)
-        }
+        predicted_rolls = np.array(model.predict_batch(model_name, sample_images), dtype=np.float32)
+        yaw_rads = np.deg2rad(sample_yaws)
+        roll_rads = np.deg2rad(predicted_rolls)
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(extract_face, k, *refinement_params[k]) for k in face_keys]
-            results_p2 = dict(f.result() for f in futures)
+        def normalize_rad(rad):
+            return (rad + np.pi) % (2 * np.pi) - np.pi
 
-        # Batch prediction for Pass 2
-        batch_imgs_p2 = [results_p2[k] for k in face_keys]
-        batch_angles_p2 = model.predict_batch(model_name, batch_imgs_p2)
-        angles_p2 = dict(zip(face_keys, batch_angles_p2))
+        def angular_diff_deg(a_deg, b_deg):
+            return abs((a_deg - b_deg + 180.0) % 360.0 - 180.0)
 
-        # Save Pass 2 faces to cache
-        face_ids_p2 = {}
-        for face_key in face_keys:
-            _, buffer = cv2.imencode(".jpg", results_p2[face_key])
-            face_id = str(uuid.uuid4())
-            image_cache.set(face_id, buffer.tobytes())
-            face_ids_p2[face_key] = face_id
+        def model_roll_deg(alpha_rad, beta_rad, yaw_rad_values):
+            # f(alpha_hat; alpha, beta) = atan(tan(beta) * cos(alpha_hat - alpha))
+            return np.rad2deg(np.arctan(np.tan(beta_rad) * np.cos(yaw_rad_values - alpha_rad)))
 
-        roll_p2 = (angles_p2['F'] - angles_p2['B']) / 2.0
-        pitch_p2 = (angles_p2['L'] - angles_p2['R']) / 2.0
+        def evaluate_hypothesis(alpha_rad, beta_rad):
+            modeled = model_roll_deg(alpha_rad, beta_rad, yaw_rads)
+            errors = np.array(
+                [angular_diff_deg(float(p), float(m)) for p, m in zip(predicted_rolls, modeled)],
+                dtype=np.float32
+            )
+            inliers = errors <= inlier_threshold_deg
+            inlier_count = int(np.sum(inliers))
+            mae = float(np.mean(errors[inliers])) if inlier_count > 0 else float("inf")
+            rmse = float(np.sqrt(np.mean(np.square(errors[inliers])))) if inlier_count > 0 else float("inf")
+            return {
+                "alpha_rad": float(normalize_rad(alpha_rad)),
+                "beta_rad": float(beta_rad),
+                "modeled_rolls": modeled,
+                "errors": errors,
+                "inliers": inliers,
+                "inlier_count": inlier_count,
+                "mae": mae,
+                "rmse": rmse,
+            }
 
-        final_roll = roll_p1 + roll_p2
-        final_pitch = pitch_p1 + pitch_p2
-        
+        # Exhaustive hypothesis generation from all point pairs.
+        best = None
+        tiny = 1e-6
+        tan_rolls = np.tan(roll_rads)
+        for i in range(sample_count):
+            for j in range(i + 1, sample_count):
+                ai = tan_rolls[i]
+                aj = tan_rolls[j]
+                theta_i = yaw_rads[i]
+                theta_j = yaw_rads[j]
+
+                p = ai * np.cos(theta_j) - aj * np.cos(theta_i)
+                q = ai * np.sin(theta_j) - aj * np.sin(theta_i)
+                if abs(p) < tiny and abs(q) < tiny:
+                    continue
+
+                alpha_candidate_1 = np.arctan2(-p, q)
+                for alpha_candidate in (alpha_candidate_1, alpha_candidate_1 + np.pi):
+                    cos_term = np.cos(theta_i - alpha_candidate)
+                    if abs(cos_term) < tiny:
+                        continue
+                    tan_beta = ai / cos_term
+                    beta_candidate = np.arctan(tan_beta)
+
+                    hypothesis = evaluate_hypothesis(alpha_candidate, beta_candidate)
+                    if best is None:
+                        best = hypothesis
+                        continue
+                    if hypothesis["inlier_count"] > best["inlier_count"]:
+                        best = hypothesis
+                    elif hypothesis["inlier_count"] == best["inlier_count"] and hypothesis["mae"] < best["mae"]:
+                        best = hypothesis
+
+        if best is None:
+            return jsonify({"error": "Unable to estimate a stable hypothesis", "status": "error"}), 500
+
+        # Least-squares-like local refinement around best hypothesis on inlier set.
+        inlier_indices = np.where(best["inliers"])[0]
+        if len(inlier_indices) >= 2:
+            def objective(alpha_rad, beta_rad):
+                modeled = model_roll_deg(alpha_rad, beta_rad, yaw_rads[inlier_indices])
+                errors = np.array(
+                    [angular_diff_deg(float(predicted_rolls[idx]), float(modeled[k])) for k, idx in enumerate(inlier_indices)],
+                    dtype=np.float32
+                )
+                return float(np.mean(np.square(errors)))
+
+            alpha_center = best["alpha_rad"]
+            beta_center = best["beta_rad"]
+
+            alpha_grid_1 = np.deg2rad(np.arange(-6.0, 6.0 + 0.001, 0.5))
+            beta_grid_1 = np.deg2rad(np.arange(-6.0, 6.0 + 0.001, 0.5))
+            best_obj = objective(alpha_center, beta_center)
+
+            for da in alpha_grid_1:
+                for db in beta_grid_1:
+                    alpha_try = normalize_rad(alpha_center + da)
+                    beta_try = np.clip(beta_center + db, np.deg2rad(-89.0), np.deg2rad(89.0))
+                    obj = objective(alpha_try, beta_try)
+                    if obj < best_obj:
+                        best_obj = obj
+                        alpha_center = alpha_try
+                        beta_center = beta_try
+
+            alpha_grid_2 = np.deg2rad(np.arange(-1.0, 1.0 + 0.001, 0.1))
+            beta_grid_2 = np.deg2rad(np.arange(-1.0, 1.0 + 0.001, 0.1))
+            for da in alpha_grid_2:
+                for db in beta_grid_2:
+                    alpha_try = normalize_rad(alpha_center + da)
+                    beta_try = np.clip(beta_center + db, np.deg2rad(-89.0), np.deg2rad(89.0))
+                    obj = objective(alpha_try, beta_try)
+                    if obj < best_obj:
+                        best_obj = obj
+                        alpha_center = alpha_try
+                        beta_center = beta_try
+
+            best = evaluate_hypothesis(alpha_center, beta_center)
+
+        alpha_deg = float(np.rad2deg(best["alpha_rad"]))
+        beta_deg = float(np.rad2deg(best["beta_rad"]))
+
+        # Convert (alpha, beta) to viewer-compatible pseudo roll/pitch.
+        tan_beta = np.tan(best["beta_rad"])
+        roll_deg = float(np.rad2deg(np.arctan(tan_beta * np.cos(best["alpha_rad"]))))
+        pitch_deg = float(np.rad2deg(-np.arctan(tan_beta * np.sin(best["alpha_rad"]))))
+
+        sample_entries = []
+        modeled_rolls = best["modeled_rolls"]
+        for idx in range(sample_count):
+            _, buffer = cv2.imencode(".jpg", sample_images[idx])
+            sample_image_id = str(uuid.uuid4())
+            image_cache.set(sample_image_id, buffer.tobytes())
+            sample_entries.append({
+                "index": idx,
+                "yaw_deg": float(sample_yaws[idx]),
+                "predicted_roll_deg": float(predicted_rolls[idx]),
+                "modeled_roll_deg": float(modeled_rolls[idx]),
+                "error_deg": float(best["errors"][idx]),
+                "inlier": bool(best["inliers"][idx]),
+                "image_id": sample_image_id,
+            })
+
         return jsonify({
-            "roll": final_roll,
-            "pitch": final_pitch,
-            "fov": {
-                "pass1": fov_p1,
-                "pass2_fb": fov_p2_fb,
-                "pass2_lr": fov_p2_lr
-            },
-            "pass1": {
-                "roll": roll_p1,
-                "pitch": pitch_p1,
-                "face_angles": angles_p1,
-                "face_ids": face_ids_p1
-            },
-            "pass2_residual": {
-                "roll": roll_p2,
-                "pitch": pitch_p2,
-                "face_angles": angles_p2,
-                "face_ids": face_ids_p2
-            },
+            "status": "success",
             "main_id": main_image_id,
-            "status": "success"
+            "sample_count": sample_count,
+            "fov_deg": fov_deg,
+            "inlier_threshold_deg": inlier_threshold_deg,
+            "alpha_deg": alpha_deg,
+            "beta_deg": beta_deg,
+            "roll": roll_deg,
+            "pitch": pitch_deg,
+            "inlier_count": int(best["inlier_count"]),
+            "inlier_ratio": float(best["inlier_count"] / sample_count),
+            "mae_inlier_deg": float(best["mae"]),
+            "rmse_inlier_deg": float(best["rmse"]),
+            "samples": sample_entries
         })
     except Exception as e:
         logger.error(f"Error processing 360 image: {str(e)}")

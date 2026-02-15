@@ -4,332 +4,370 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360 Orientation Analysis</title>
+    <title>360 Upright Adjustment - 36 View Search</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style4.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style5.css') }}">
     <style>
+        :root {
+            --ink: #14151a;
+            --bg: #f4f1ea;
+            --paper: #ffffff;
+            --accent: #d15a2d;
+            --accent-2: #15616d;
+            --muted: #666d76;
+            --ok: #1c8a5f;
+            --bad: #c2401f;
+        }
+
         body {
-            background: #f8f9fa;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
             margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 18% 15%, #ffd9b7 0%, rgba(255, 217, 183, 0) 55%),
+                radial-gradient(circle at 82% 85%, #bde4ea 0%, rgba(189, 228, 234, 0) 52%),
+                var(--bg);
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            color: var(--ink);
+            padding: 28px 14px;
+        }
+
+        .shell {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--paper);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 18px;
+            box-shadow: 0 18px 46px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(120deg, #232733, #184e61);
+            color: white;
+            padding: 24px;
+        }
+
+        .hero h1 {
+            font-size: 1.65rem;
+            margin: 0;
+            letter-spacing: 0.4px;
+            font-weight: 800;
+        }
+
+        .hero p {
+            margin: 10px 0 0;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .body-wrap {
+            padding: 24px;
+        }
+
+        .label {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .metric-card {
+            border-radius: 12px;
+            padding: 12px;
+            background: #f8f9fb;
+            border: 1px solid #edf0f4;
+            height: 100%;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            line-height: 1.1;
+            font-weight: 800;
+            margin-top: 6px;
+        }
+
+        .metric-sub {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-top: 5px;
+        }
+
+        #submitBtn {
+            font-weight: 700;
+            border-radius: 28px;
+            border: none;
+            background: linear-gradient(90deg, var(--accent), #f0ab35);
+            color: white;
+            padding: 12px;
         }
 
         #submitBtn:hover {
+            filter: brightness(0.98);
+            transform: translateY(-1px);
+        }
+
+        #randomBtn {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .view-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+            gap: 10px;
+        }
+
+        .view-cell {
+            border: 1px solid #e4e7ed;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #fff;
+            transition: transform 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .view-cell:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(209, 63, 68, 0.4);
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.12);
         }
 
-        .face-container {
-            border: 2px solid #eee;
-            background: #000;
+        .view-cell.inlier {
+            border-color: rgba(28, 138, 95, 0.32);
         }
 
-        .face-img {
-            display: block;
+        .view-cell.outlier {
+            border-color: rgba(194, 64, 31, 0.45);
+        }
+
+        .view-thumb {
             width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+            display: block;
+            background: #111;
         }
 
-        .custom-switch .custom-control-label::before {
-            background-color: #ddd;
+        .view-meta {
+            padding: 7px;
+            font-size: 0.74rem;
+            line-height: 1.35;
         }
 
-        .custom-switch .custom-control-input:checked~.custom-control-label::before {
-            background-color: #d13f44;
-            border-color: #d13f44;
+        .view-flag {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            margin-top: 2px;
+        }
+
+        .view-flag.inlier {
+            background: rgba(28, 138, 95, 0.12);
+            color: var(--ok);
+        }
+
+        .view-flag.outlier {
+            background: rgba(194, 64, 31, 0.11);
+            color: var(--bad);
+        }
+
+        .chart-box {
+            border-radius: 12px;
+            border: 1px solid #e4e7ed;
+            background: #fff;
+            padding: 10px;
+        }
+
+        #rollCanvas {
+            width: 100%;
+            height: 220px;
+            display: block;
+            border-radius: 8px;
+            background: #fbfcfd;
+        }
+
+        .status-line {
+            font-size: 0.86rem;
+            color: var(--muted);
+        }
+
+        @media (max-width: 767px) {
+            .body-wrap {
+                padding: 16px;
+            }
+
+            .hero {
+                padding: 18px;
+            }
+
+            .hero h1 {
+                font-size: 1.35rem;
+            }
+
+            #rollCanvas {
+                height: 190px;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-11">
-                <div class="card shadow-lg border-0" style="border-radius: 15px; background: #fff;">
-                    <div class="card-body p-4 p-md-5">
-                        <h2 class="text-center mb-4" style="color: #d13f44; font-weight: 700;">360° Photo Orientation
-                            Correction</h2>
+    <div class="shell">
+        <div class="panel">
+            <div class="hero">
+                <h1>36-View Upright Search for 360 Panoramas</h1>
+                <p>Implements the paper pipeline: sample 36 horizon views, estimate roll per view, run exhaustive hypothesis search, then refine with inlier fitting.</p>
+            </div>
 
-                        <div id="setup-section">
-                            <p class="text-muted text-center mb-5">Upload an equirectangular image or paste a URL to
-                                calculate the required Pitch and Roll for horizon correction.</p>
-
-                            <form id="uploadForm">
-                                <div class="form-group mb-4">
-                                    <label for="file" class="form-label" style="font-weight: 600;">Select 360°
-                                        Image</label>
-                                    <input type="file" class="form-control-file" id="file" name="file" accept="image/*">
-                                </div>
-
-                                <div class="text-center my-3">
-                                    <span class="badge badge-secondary px-3 py-2" style="border-radius: 20px;">OR</span>
-                                </div>
-
-                                <div class="form-group mb-4">
-                                    <label for="url" class="form-label" style="font-weight: 600;">Paste Image
-                                        URL</label>
-                                    <div class="input-group">
-                                        <input type="url" class="form-control" id="url" name="url"
-                                            placeholder="https://example.com/image.jpg">
-                                        <div class="input-group-append">
-                                            <button type="button" id="randomBtn" class="btn btn-outline-danger"
-                                                title="Pick Random Panoramax Image">
-                                                <i class="fas fa-dice"></i> Random
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-4">
-                                        <div class="form-group mb-4">
-                                            <label for="fov_pass1" class="form-label" style="font-weight: 600;">Pass 1
-                                                FOV</label>
-                                            <input type="number" class="form-control" id="fov_pass1" name="fov_pass1"
-                                                value="120" step="1" min="10" max="180">
-                                        </div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="form-group mb-4">
-                                            <label for="fov_pass2_fb" class="form-label" style="font-weight: 600;">Pass
-                                                2 FOV (FB)</label>
-                                            <input type="number" class="form-control" id="fov_pass2_fb"
-                                                name="fov_pass2_fb" value="60" step="1" min="10" max="180">
-                                        </div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="form-group mb-4">
-                                            <label for="fov_pass2_lr" class="form-label" style="font-weight: 600;">Pass
-                                                2 FOV (LR)</label>
-                                            <input type="number" class="form-control" id="fov_pass2_lr"
-                                                name="fov_pass2_lr" value="60" step="1" min="10" max="180">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <input type="hidden" id="model" name="model" value="ViT">
-
-                                <button type="submit" id="submitBtn" class="btn btn-block py-3 mt-4"
-                                    style="background: linear-gradient(to right, #d13f44, #f2b411); color: white; border-radius: 30px; font-weight: 700; font-size: 1.1rem; border: none; transition: transform 0.2s;">
-                                    Analyze & Preview In New Tab
-                                </button>
-                            </form>
-
-                            <div id="loading" class="text-center mt-5" style="display: none;">
-                                <div class="spinner-border text-danger" role="status">
-                                    <span class="sr-only">Processing...</span>
-                                </div>
-                                <p class="mt-2 text-muted">Analyzing 360 faces... This may take a few seconds.</p>
+            <div class="body-wrap">
+                <div id="setup-section">
+                    <form id="uploadForm">
+                        <div class="form-row">
+                            <div class="col-md-6 mb-3">
+                                <label class="label" for="file">Upload Equirectangular Image</label>
+                                <input type="file" class="form-control-file" id="file" name="file" accept="image/*">
                             </div>
-                        </div>
-
-                        <div id="results" class="mt-4" style="display: none;">
-                            <div class="row">
-                                <div class="col-lg-12 text-center mb-4">
-                                    <div class="alert alert-success d-inline-block px-5" style="border-radius: 30px;">
-                                        <i class="fas fa-check-circle mr-2"></i> Analysis Complete! A preview tab should
-                                        have opened.
-                                    </div>
-                                </div>
-
-                                <!-- Overall Correction -->
-                                <div class="col-lg-5">
-                                    <h4 class="mb-4" style="font-weight: 600;">Correction Parameters</h4>
-                                    <div class="row">
-                                        <div class="col-6">
-                                            <div class="p-3 bg-light rounded shadow-sm mb-3 text-center">
-                                                <h5 class="text-muted mb-1 small">ROLL OFFSET</h5>
-                                                <h3 id="rollVal" style="color: #d13f44; font-weight: 800;">0.00°</h3>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="p-3 bg-light rounded shadow-sm mb-4 text-center">
-                                                <h5 class="text-muted mb-1 small">PITCH OFFSET</h5>
-                                                <h3 id="pitchVal" style="color: #f2b411; font-weight: 800;">0.00°</h3>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-2 text-center">
-                                        <div id="sourceLinkContainer" style="display: none;" class="mb-3">
-                                            <a id="sourceLink" href="#" target="_blank"
-                                                class="btn btn-sm btn-outline-info" style="border-radius: 20px;">
-                                                <i class="fas fa-external-link-alt mr-1"></i> View on Panoramax
-                                            </a>
-                                        </div>
-                                        <button id="reopenBtn" class="btn btn-primary btn-block py-3 mb-3"
-                                            style="border-radius: 30px; font-weight: 600;">
-                                            <i class="fas fa-external-link-alt mr-2"></i> Re-open 3D Preview
+                            <div class="col-md-6 mb-3">
+                                <label class="label" for="url">Or Paste URL</label>
+                                <div class="input-group">
+                                    <input type="url" class="form-control" id="url" name="url" placeholder="https://example.com/pano.jpg">
+                                    <div class="input-group-append">
+                                        <button type="button" id="randomBtn" class="btn btn-outline-danger" title="Random Panoramax Sample">
+                                            <i class="fas fa-dice"></i> Random
                                         </button>
-                                        <button class="btn btn-outline-secondary btn-block"
-                                            onclick="location.reload()">Start New Analysis</button>
-                                    </div>
-
-                                    <!-- Analysis Breakdown Table -->
-                                    <div class="mt-4 p-3 bg-white border rounded shadow-sm">
-                                        <h6 class="font-weight-bold text-dark border-bottom pb-2 mb-3">ANALYSIS
-                                            BREAKDOWN</h6>
-                                        <table class="table table-sm table-borderless small m-0">
-                                            <thead>
-                                                <tr class="text-muted" style="font-size: 0.7rem;">
-                                                    <th>STAGE</th>
-                                                    <th class="text-center">FOV</th>
-                                                    <th class="text-center">ROLL</th>
-                                                    <th class="text-center">PITCH</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td>Pass 1 (Crude)</td>
-                                                    <td class="text-center" id="p1-fov">120°</td>
-                                                    <td class="text-center font-weight-bold" id="p1-roll">0.00°</td>
-                                                    <td class="text-center font-weight-bold" id="p1-pitch">0.00°</td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Pass 2 (Refined)</td>
-                                                    <td class="text-center" id="p2-fov">60°/60°</td>
-                                                    <td class="text-center font-weight-bold" id="p2-roll">0.00°</td>
-                                                    <td class="text-center font-weight-bold" id="p2-pitch">0.00°</td>
-                                                </tr>
-                                                <tr class="border-top">
-                                                    <td class="font-weight-bold">Final Correct.</td>
-                                                    <td class="text-center">-</td>
-                                                    <td class="text-center font-weight-bold text-danger"
-                                                        id="final-roll-t">0.00°</td>
-                                                    <td class="text-center font-weight-bold text-warning"
-                                                        id="final-pitch-t">0.00°</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <!-- Cubemap Faces -->
-                                <div class="col-lg-7">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <div class="btn-group btn-group-sm mr-3" role="group">
-                                            <button type="button" id="btn-pass1"
-                                                class="btn btn-outline-secondary active" onclick="switchPass(1)">PASS 1
-                                                (CRUDE)</button>
-                                            <button type="button" id="btn-pass2" class="btn btn-outline-secondary"
-                                                onclick="switchPass(2)">PASS 2 (REFINED)</button>
-                                        </div>
-                                        <div class="custom-control custom-switch">
-                                            <input type="checkbox" class="custom-control-input"
-                                                id="toggleFaceCorrection">
-                                            <label class="custom-control-label font-weight-bold"
-                                                for="toggleFaceCorrection">SHOW CORRECTED</label>
-                                        </div>
-                                    </div>
-
-                                    <div class="row no-gutters text-center">
-                                        <div class="col-3 p-1">
-                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
-                                                style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-F" class="face-img" src=""
-                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
-                                                <div class="face-label"
-                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
-                                                    FRONT</div>
-                                            </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-F">0.00°</div>
-                                        </div>
-                                        <div class="col-3 p-1">
-                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
-                                                style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-R" class="face-img" src=""
-                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
-                                                <div class="face-label"
-                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
-                                                    RIGHT</div>
-                                            </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-R">0.00°</div>
-                                        </div>
-                                        <div class="col-3 p-1">
-                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
-                                                style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-B" class="face-img" src=""
-                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
-                                                <div class="face-label"
-                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
-                                                    BACK</div>
-                                            </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-B">0.00°</div>
-                                        </div>
-                                        <div class="col-3 p-1">
-                                            <div class="face-container bg-dark rounded overflow-hidden shadow-sm"
-                                                style="position: relative; aspect-ratio: 1/1;">
-                                                <img id="img-L" class="face-img" src=""
-                                                    style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
-                                                <div class="face-label"
-                                                    style="position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; font-weight: bold; padding: 2px 0;">
-                                                    LEFT</div>
-                                            </div>
-                                            <div class="small mt-1 font-weight-bold" id="val-L">0.00°</div>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div id="error" class="alert alert-danger mt-4" style="display: none; border-radius: 10px;">
+                        <div class="form-row">
+                            <div class="col-md-3 mb-3">
+                                <label class="label" for="sample_count">Views</label>
+                                <input type="number" class="form-control" id="sample_count" name="sample_count" value="36" min="4" max="72" step="1">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="label" for="fov">FOV (deg)</label>
+                                <input type="number" class="form-control" id="fov" name="fov" value="60" min="15" max="170" step="1">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="label" for="inlier_threshold_deg">Inlier Threshold</label>
+                                <input type="number" class="form-control" id="inlier_threshold_deg" name="inlier_threshold_deg" value="2" min="0.2" max="20" step="0.1">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="label" for="model">Model</label>
+                                <select class="form-control" id="model" name="model">
+                                    <option value="vit">ViT</option>
+                                </select>
+                            </div>
                         </div>
+
+                        <button type="submit" id="submitBtn" class="btn btn-block mt-2">Run 36-View Exhaustive Search</button>
+                    </form>
+
+                    <div id="loading" class="text-center mt-4" style="display:none;">
+                        <div class="spinner-border" style="color: var(--accent);" role="status"></div>
+                        <p class="status-line mt-2 mb-0">Extracting views, predicting roll angles, searching best hypothesis...</p>
                     </div>
                 </div>
+
+                <div id="results" style="display:none;" class="mt-2">
+                    <div class="row">
+                        <div class="col-lg-9 mb-3">
+                            <div class="chart-box h-100">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <div class="label">Roll Curve Diagnostics</div>
+                                        <div class="status-line">Blue: predicted per sampled image, orange: fitted model</div>
+                                    </div>
+                                    <button id="reopenBtn" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-external-link-alt"></i> Open 3D Viewer
+                                    </button>
+                                </div>
+                                <canvas id="rollCanvas" width="900" height="220"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 mb-3">
+                            <div class="row">
+                                <div class="col-6 col-lg-12 mb-2">
+                                    <div class="metric-card">
+                                        <div class="label">Yaw α</div>
+                                        <div id="alphaVal" class="metric-value">0.00°</div>
+                                        <div class="metric-sub">Peak tilt direction</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-lg-12 mb-2">
+                                    <div class="metric-card">
+                                        <div class="label">Roll β</div>
+                                        <div id="betaVal" class="metric-value">0.00°</div>
+                                        <div class="metric-sub">Camera roll magnitude</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-lg-12 mb-2">
+                                    <div class="metric-card">
+                                        <div class="label">Inliers</div>
+                                        <div id="inlierVal" class="metric-value">0/0</div>
+                                        <div id="ratioVal" class="metric-sub">0.00%</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-lg-12 mb-2">
+                                    <div class="metric-card">
+                                        <div class="label">RMSE (inliers)</div>
+                                        <div id="rmseVal" class="metric-value">0.00°</div>
+                                        <div id="rollPitchVal" class="metric-sub">Viewer: R=0.00°, P=0.00°</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-2 mb-2">
+                        <div class="label">Sampled Views</div>
+                        <div class="status-line" id="metaLine">36 samples around horizon</div>
+                    </div>
+                    <div id="viewsGrid" class="view-grid"></div>
+                </div>
+
+                <div id="error" class="alert alert-danger mt-3" style="display:none;"></div>
             </div>
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-
     <script>
         let lastResult = null;
-        let currentPass = 1;
 
-        // Load saved FOV values on page load
         document.addEventListener('DOMContentLoaded', () => {
-            const savedFov1 = localStorage.getItem('fov_pass1');
-            const savedFov2fb = localStorage.getItem('fov_pass2_fb');
-            const savedFov2lr = localStorage.getItem('fov_pass2_lr');
+            const persisted = [
+                ['sample_count', '36'],
+                ['fov', '60'],
+                ['inlier_threshold_deg', '2']
+            ];
 
-            if (savedFov1) document.getElementById('fov_pass1').value = savedFov1;
-            if (savedFov2fb) document.getElementById('fov_pass2_fb').value = savedFov2fb;
-            if (savedFov2lr) document.getElementById('fov_pass2_lr').value = savedFov2lr;
-        });
-
-        // Save FOV values when they change
-        document.getElementById('fov_pass1').addEventListener('change', (e) => {
-            localStorage.setItem('fov_pass1', e.target.value);
-        });
-        document.getElementById('fov_pass2_fb').addEventListener('change', (e) => {
-            localStorage.setItem('fov_pass2_fb', e.target.value);
-        });
-        document.getElementById('fov_pass2_lr').addEventListener('change', (e) => {
-            localStorage.setItem('fov_pass2_lr', e.target.value);
+            persisted.forEach(([key, fallback]) => {
+                const saved = localStorage.getItem(key);
+                document.getElementById(key).value = saved || fallback;
+                document.getElementById(key).addEventListener('change', (e) => {
+                    localStorage.setItem(key, e.target.value);
+                });
+            });
         });
 
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const form = e.target;
-            const formData = new FormData(form);
-            const submitBtn = document.getElementById('submitBtn');
+            const formData = new FormData(e.target);
             const loading = document.getElementById('loading');
             const setupSection = document.getElementById('setup-section');
             const results = document.getElementById('results');
             const error = document.getElementById('error');
-
-            // Reset UI
-            submitBtn.disabled = true;
+            const submitBtn = document.getElementById('submitBtn');
             const randomBtn = document.getElementById('randomBtn');
-            if (randomBtn) randomBtn.disabled = true;
 
+            submitBtn.disabled = true;
+            randomBtn.disabled = true;
             loading.style.display = 'block';
             error.style.display = 'none';
 
@@ -338,110 +376,127 @@
                     method: 'POST',
                     body: formData
                 });
-
                 const data = await response.json();
 
-                if (data.status === 'success') {
-                    lastResult = data;
-
-                    // Check if current URL is a Panoramax HD image
-                    const urlVal = document.getElementById('url').value;
-                    let panoramaxId = null;
-                    if (urlVal.includes('api.panoramax.xyz/api/pictures/')) {
-                        const match = urlVal.match(/pictures\/(.+)\/hd\.jpg/);
-                        if (match) panoramaxId = match[1];
-                    }
-
-                    renderResults(panoramaxId);
-                    setupSection.style.display = 'none';
-                    results.style.display = 'block';
-                    openPreviewTab(data);
-                } else {
-                    error.textContent = data.error || 'An error occurred during processing.';
-                    error.style.display = 'block';
-                    submitBtn.disabled = false;
-                    if (randomBtn) randomBtn.disabled = false;
-                    loading.style.display = 'none';
+                if (data.status !== 'success') {
+                    throw new Error(data.error || 'Failed to process image');
                 }
-            } catch (err) {
-                console.error(err);
-                error.textContent = 'Failed to connect to the server or process the image.';
-                error.style.display = 'block';
-                submitBtn.disabled = false;
-                if (randomBtn) randomBtn.disabled = false;
+
+                lastResult = data;
+                renderResults(data);
+                setupSection.style.display = 'none';
+                results.style.display = 'block';
                 loading.style.display = 'none';
+                openPreviewTab(data);
+            } catch (err) {
+                error.textContent = err.message || 'An error occurred during processing.';
+                error.style.display = 'block';
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                randomBtn.disabled = false;
             }
         });
 
-        function renderResults(panoramaxId = null) {
-            if (!lastResult) return;
+        function renderResults(data) {
+            document.getElementById('alphaVal').textContent = `${data.alpha_deg.toFixed(2)}°`;
+            document.getElementById('betaVal').textContent = `${data.beta_deg.toFixed(2)}°`;
+            document.getElementById('inlierVal').textContent = `${data.inlier_count}/${data.sample_count}`;
+            document.getElementById('ratioVal').textContent = `${(data.inlier_ratio * 100).toFixed(1)}% inlier ratio`;
+            document.getElementById('rmseVal').textContent = `${data.rmse_inlier_deg.toFixed(2)}°`;
+            document.getElementById('rollPitchVal').textContent = `Viewer: R=${data.roll.toFixed(2)}°, P=${data.pitch.toFixed(2)}°`;
+            document.getElementById('metaLine').textContent = `${data.sample_count} samples, FOV ${data.fov_deg.toFixed(0)}°, inlier threshold ${data.inlier_threshold_deg.toFixed(1)}°`;
 
-            document.getElementById('rollVal').textContent = lastResult.roll.toFixed(2) + '°';
-            document.getElementById('pitchVal').textContent = lastResult.pitch.toFixed(2) + '°';
+            renderGrid(data.samples);
+            drawCurve(data.samples);
+        }
 
-            // Source Link
-            const sourceContainer = document.getElementById('sourceLinkContainer');
-            if (panoramaxId) {
-                const sourceLink = document.getElementById('sourceLink');
-                sourceLink.href = `https://api.panoramax.xyz/#focus=pic&pic=${panoramaxId}`;
-                sourceContainer.style.display = 'block';
-            } else {
-                sourceContainer.style.display = 'none';
+        function renderGrid(samples) {
+            const grid = document.getElementById('viewsGrid');
+            grid.innerHTML = '';
+
+            samples.forEach((s) => {
+                const cell = document.createElement('div');
+                cell.className = `view-cell ${s.inlier ? 'inlier' : 'outlier'}`;
+                cell.innerHTML = `
+                    <img class="view-thumb" src="/mem_image/${s.image_id}" alt="sample ${s.index}">
+                    <div class="view-meta">
+                        <div><strong>#${s.index + 1}</strong> at ${s.yaw_deg.toFixed(1)}°</div>
+                        <div>pred: ${s.predicted_roll_deg.toFixed(2)}°</div>
+                        <div>fit: ${s.modeled_roll_deg.toFixed(2)}°</div>
+                        <div>err: ${s.error_deg.toFixed(2)}°</div>
+                        <span class="view-flag ${s.inlier ? 'inlier' : 'outlier'}">${s.inlier ? 'INLIER' : 'OUTLIER'}</span>
+                    </div>
+                `;
+                grid.appendChild(cell);
+            });
+        }
+
+        function drawCurve(samples) {
+            const canvas = document.getElementById('rollCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+
+            const margin = { left: 42, right: 14, top: 12, bottom: 28 };
+            const pW = W - margin.left - margin.right;
+            const pH = H - margin.top - margin.bottom;
+
+            const ys = samples.flatMap((s) => [s.predicted_roll_deg, s.modeled_roll_deg]);
+            const maxAbs = Math.max(8, ...ys.map((v) => Math.abs(v))) + 2;
+            const yMin = -maxAbs;
+            const yMax = maxAbs;
+
+            const xScale = (x) => margin.left + (x / (samples.length - 1 || 1)) * pW;
+            const yScale = (y) => margin.top + (1 - (y - yMin) / (yMax - yMin)) * pH;
+
+            ctx.strokeStyle = '#d6dbe3';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = margin.top + (i / 4) * pH;
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(margin.left + pW, y);
+                ctx.stroke();
             }
 
-            // Update Breakdown Table
-            document.getElementById('p1-fov').textContent = lastResult.fov.pass1.toFixed(0) + '°';
-            document.getElementById('p1-roll').textContent = lastResult.pass1.roll.toFixed(2) + '°';
-            document.getElementById('p1-pitch').textContent = lastResult.pass1.pitch.toFixed(2) + '°';
-            document.getElementById('p2-fov').textContent = `${lastResult.fov.pass2_fb.toFixed(0)}°/${lastResult.fov.pass2_lr.toFixed(0)}°`;
-            document.getElementById('p2-roll').textContent = lastResult.pass2_residual.roll.toFixed(2) + '°';
-            document.getElementById('p2-pitch').textContent = lastResult.pass2_residual.pitch.toFixed(2) + '°';
-            document.getElementById('final-roll-t').textContent = lastResult.roll.toFixed(2) + '°';
-            document.getElementById('final-pitch-t').textContent = lastResult.pitch.toFixed(2) + '°';
+            ctx.fillStyle = '#6a7482';
+            ctx.font = '11px sans-serif';
+            ctx.fillText(`${yMax.toFixed(0)}°`, 7, yScale(yMax) + 4);
+            ctx.fillText('0°', 14, yScale(0) + 4);
+            ctx.fillText(`${yMin.toFixed(0)}°`, 7, yScale(yMin) + 4);
 
-            switchPass(1);
-        }
-
-        function switchPass(passNumber) {
-            currentPass = passNumber;
-            if (!lastResult) return;
-
-            document.getElementById('btn-pass1').classList.toggle('active', passNumber === 1);
-            document.getElementById('btn-pass2').classList.toggle('active', passNumber === 2);
-
-            const passData = passNumber === 1 ? lastResult.pass1 : lastResult.pass2_residual;
-            const faces = ['F', 'R', 'B', 'L'];
-
-            faces.forEach(face => {
-                document.getElementById(`val-${face}`).textContent = passData.face_angles[face].toFixed(2) + '°';
-                document.getElementById(`img-${face}`).src = `/mem_image/${passData.face_ids[face]}`;
+            ctx.beginPath();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#d15a2d';
+            samples.forEach((s, idx) => {
+                const x = xScale(idx);
+                const y = yScale(s.modeled_roll_deg);
+                if (idx === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
             });
+            ctx.stroke();
 
-            // Reset correction toggle when switching passes
-            document.getElementById('toggleFaceCorrection').checked = false;
-            applyFaceRotations(false);
-        }
+            ctx.beginPath();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#15616d';
+            samples.forEach((s, idx) => {
+                const x = xScale(idx);
+                const y = yScale(s.predicted_roll_deg);
+                if (idx === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
 
-        function applyFaceRotations(enabled) {
-            if (!lastResult) return;
-            const passData = currentPass === 1 ? lastResult.pass1 : lastResult.pass2_residual;
-            const faces = ['F', 'R', 'B', 'L'];
-
-            faces.forEach(face => {
-                const img = document.getElementById(`img-${face}`);
-                if (enabled) {
-                    // Correct Rotation: Swapped sign based on user feedback
-                    const angle = passData.face_angles[face];
-                    img.style.transform = `rotate(${angle}deg)`;
-                } else {
-                    img.style.transform = 'rotate(0deg)';
-                }
+            samples.forEach((s, idx) => {
+                const x = xScale(idx);
+                const y = yScale(s.predicted_roll_deg);
+                ctx.beginPath();
+                ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+                ctx.fillStyle = s.inlier ? '#1c8a5f' : '#c2401f';
+                ctx.fill();
             });
         }
-
-        document.getElementById('toggleFaceCorrection').addEventListener('change', function (e) {
-            applyFaceRotations(e.target.checked);
-        });
 
         function openPreviewTab(data) {
             const params = new URLSearchParams({
@@ -456,35 +511,26 @@
             if (lastResult) openPreviewTab(lastResult);
         });
 
-        // Random Button Logic
         document.getElementById('randomBtn').addEventListener('click', async () => {
             const btn = document.getElementById('randomBtn');
             const urlInput = document.getElementById('url');
-            const originalText = btn.innerHTML;
+            const originalHtml = btn.innerHTML;
 
             try {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
                 const response = await fetch('/api/random_id');
                 const data = await response.json();
+                if (!data.id) throw new Error('Failed to get random ID');
 
-                if (data.id) {
-                    urlInput.value = `https://api.panoramax.xyz/api/pictures/${data.id}/hd.jpg`;
-                    // Restore text immediately so if we come back it looks right
-                    btn.innerHTML = originalText;
-                    // Trigger form submission - this will keep the button disabled
-                    document.getElementById('uploadForm').dispatchEvent(new Event('submit'));
-                } else {
-                    alert('Failed to get random image ID');
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
-                }
-            } catch (err) {
-                console.error(err);
-                alert('Error fetching random image');
+                urlInput.value = `https://api.panoramax.xyz/api/pictures/${data.id}/hd.jpg`;
+                btn.innerHTML = originalHtml;
                 btn.disabled = false;
-                btn.innerHTML = originalText;
+            } catch (err) {
+                alert(err.message || 'Error fetching random image ID');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
             }
         });
     </script>
